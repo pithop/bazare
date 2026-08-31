@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: lebazare-manager/package-lock.json
 
@@ -37,17 +37,11 @@ jobs:
         working-directory: lebazare-manager
         run: npx expo prebuild --clean --platform android
 
-      - name: Disable ProGuard and R8
-        working-directory: lebazare-manager/android
-        run: |
-          echo "android.enableR8=false" >> gradle.properties
-          sed -i 's/def enableProguardInReleaseBuilds = true/def enableProguardInReleaseBuilds = false/g' app/build.gradle || true
-
       - name: Build APK
         working-directory: lebazare-manager/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
