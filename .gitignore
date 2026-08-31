@@ -1,0 +1,8 @@
+*.zip
+*.apk
+*.aab
+*.tar.gz
+node_modules/
+.expo/
+lebazare-manager/node_modules/
+lebazare-manager/.expo/
