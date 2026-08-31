@@ -37,15 +37,22 @@ jobs:
         working-directory: lebazare-manager
         run: npx expo prebuild --clean --platform android
 
-      - name: Build APK
+      - name: Build APK (release + debug)
         working-directory: lebazare-manager/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleRelease assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Upload APK release
         uses: actions/upload-artifact@v4
         with:
-          name: LeBazare-Manager
+          name: LeBazare-Manager-release
           path: lebazare-manager/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 90
+
+      - name: Upload APK debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: LeBazare-Manager-debug
+          path: lebazare-manager/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 90

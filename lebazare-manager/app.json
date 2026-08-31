@@ -11,6 +11,7 @@
       "bundleIdentifier": "com.pithop.lebazaremanager"
     },
     "android": {
+      "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#0F0F1A",
         "foregroundImage": "./assets/android-icon-foreground.png",
