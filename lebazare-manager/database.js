@@ -1,50 +1,53 @@
 import * as SQLite from 'expo-sqlite';
 import etsyProducts from './etsy_products.json';
 
-let db = null;
+let dbPromise = null;
 
 export const initDB = async () => {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync('lebazare.db');
-    await db.execAsync(`
-      PRAGMA journal_mode = WAL;
-      
-      CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        category TEXT NOT NULL,
-        stock INTEGER DEFAULT 0
-      );
-      
-      CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        etsy_id TEXT,
-        customer_name TEXT,
-        status TEXT DEFAULT 'PENDING',
-        date TEXT
-      );
-      
-      CREATE TABLE IF NOT EXISTS order_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_id INTEGER,
-        product_id INTEGER,
-        quantity INTEGER,
-        FOREIGN KEY(order_id) REFERENCES orders(id),
-        FOREIGN KEY(product_id) REFERENCES products(id)
-      );
-    `);
-    
-    const countResult = await db.getAllAsync('SELECT COUNT(*) as count FROM products');
-    if (countResult[0].count === 0) {
-      for (const product of etsyProducts) {
-        await db.runAsync(
-          `INSERT INTO products (name, category, stock) VALUES (?, ?, ?)`,
-          [product.name, product.category, product.stock]
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const database = await SQLite.openDatabaseAsync('lebazare.db');
+      await database.execAsync(`
+        PRAGMA journal_mode = WAL;
+        
+        CREATE TABLE IF NOT EXISTS products (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          stock INTEGER DEFAULT 0
         );
+        
+        CREATE TABLE IF NOT EXISTS orders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          etsy_id TEXT,
+          customer_name TEXT,
+          status TEXT DEFAULT 'PENDING',
+          date TEXT
+        );
+        
+        CREATE TABLE IF NOT EXISTS order_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          order_id INTEGER,
+          product_id INTEGER,
+          quantity INTEGER,
+          FOREIGN KEY(order_id) REFERENCES orders(id),
+          FOREIGN KEY(product_id) REFERENCES products(id)
+        );
+      `);
+      
+      const countResult = await database.getAllAsync('SELECT COUNT(*) as count FROM products');
+      if (countResult[0]?.count === 0) {
+        for (const product of etsyProducts) {
+          await database.runAsync(
+            `INSERT INTO products (name, category, stock) VALUES (?, ?, ?)`,
+            [product.name, product.category, product.stock]
+          );
+        }
       }
-    }
+      return database;
+    })();
   }
-  return db;
+  return dbPromise;
 };
 
 // ──────────────────────────────────
