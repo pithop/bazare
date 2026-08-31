@@ -37,6 +37,10 @@ jobs:
         working-directory: lebazare-manager
         run: npx expo prebuild --clean --platform android
 
+      - name: Restore fixed signing keystore
+        working-directory: lebazare-manager
+        run: cp keystores/debug.keystore android/app/debug.keystore
+
       - name: Embed JS bundle in debug APK too
         working-directory: lebazare-manager/android
         run: sed -i 's|^react {|react {\n    debuggableVariants = []|' app/build.gradle
