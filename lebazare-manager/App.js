@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StatusBar, View, Text, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initDB, getPendingOrderCount, getLowStockProducts } from './database';
@@ -92,8 +92,9 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer
         theme={{
-          dark: true,
+          ...DarkTheme,
           colors: {
+            ...DarkTheme.colors,
             primary: COLORS.primary,
             background: COLORS.bg,
             card: COLORS.card,
