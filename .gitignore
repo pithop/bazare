@@ -6,3 +6,16 @@ node_modules/
 .expo/
 lebazare-manager/node_modules/
 lebazare-manager/.expo/
+
+# Fichiers personnels — ne jamais pousser sur GitHub
+/WhatsApp Chat with Hatime Chahraoui/
+WhatsApp Chat with Hatime Chahraoui/
+
+# Copies/doublons et captures d'écran à la racine
+/LeBazare-Manager (1)/
+/LeBazare-Manager (2)/
+/LeBazare-Manager (3)/
+/LeBazare-Manager1/
+/LeBazare-Manager-debug*
+Screenshot_*.jpg
+Screenshot_*.png
