@@ -1,211 +1,215 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, Alert, Modal, StyleSheet } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import StockCard from '../components/StockCard';
+import { Ionicons } from '@expo/vector-icons';
+import SearchBar from '../components/ui/SearchBar';
+import SegmentedControl from '../components/ui/SegmentedControl';
+import EmptyState from '../components/ui/EmptyState';
+import ProductRow from '../components/ProductRow';
+import ProductFormSheet from '../components/ProductFormSheet';
+import AdjustStockSheet from '../components/AdjustStockSheet';
 import { COLORS, SIZES } from '../theme';
-import { getProductsByCategory, updateStock, addProduct, deleteProduct } from '../../database';
+import {
+  getProducts, addProduct, updateProduct, deleteProduct,
+  setStock, adjustStock, getDefaultMinStock,
+} from '../../database';
 
 export default function InventoryScreen() {
-  const [activeCategory, setActiveCategory] = useState('Produits');
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newStock, setNewStock] = useState('0');
+  const [category, setCategory] = useState('all');
+  const [formVisible, setFormVisible] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [adjustProduct, setAdjustProduct] = useState(null);
+  const [defaultMin, setDefaultMin] = useState(5);
 
-  const loadData = async () => {
-    const data = await getProductsByCategory(activeCategory);
-    setProducts(data);
+  const loadData = useCallback(async () => {
+    setProducts(await getProducts());
+    setDefaultMin(await getDefaultMinStock());
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return products.filter((p) => {
+      if (category !== 'all' && p.category !== category) return false;
+      if (q && !p.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [products, search, category]);
+
+  const stats = useMemo(() => {
+    const low = products.filter((p) => p.stock < p.min_stock).length;
+    const out = products.filter((p) => p.stock === 0).length;
+    const units = products.reduce((a, p) => a + p.stock, 0);
+    return { refs: products.length, low, out, units };
+  }, [products]);
+
+  const openCreate = () => {
+    setEditingProduct(null);
+    setFormVisible(true);
   };
 
-  useFocusEffect(useCallback(() => { loadData(); }, [activeCategory]));
-
-  const handleStockChange = async (id, currentStock, change) => {
-    await updateStock(id, currentStock + change);
-    loadData();
+  const openEdit = (product) => {
+    setAdjustProduct(null);
+    setEditingProduct(product);
+    setFormVisible(true);
   };
 
-  const handleDelete = (item) => {
-    Alert.alert('Supprimer', `Supprimer "${item.name}" ?`, [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer', style: 'destructive',
-        onPress: async () => { await deleteProduct(item.id); loadData(); },
-      },
-    ]);
-  };
-
-  const handleAdd = async () => {
-    if (!newName.trim()) {
-      Alert.alert('Erreur', 'Entrez un nom.');
-      return;
+  const handleSubmit = async ({ name, category: cat, stock, min_stock }) => {
+    if (editingProduct) {
+      await updateProduct(editingProduct.id, { name, category: cat, min_stock });
+    } else {
+      await addProduct({ name, category: cat, stock, min_stock });
     }
-    await addProduct(newName.trim(), activeCategory, parseInt(newStock) || 0);
-    setShowAddModal(false);
-    setNewName('');
-    setNewStock('0');
-    loadData();
+    await loadData();
   };
 
-  const filtered = search
-    ? products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
-    : products;
+  const handleDelete = async (product) => {
+    await deleteProduct(product.id);
+    await loadData();
+  };
 
-  const totalStock = products.reduce((sum, p) => sum + p.stock, 0);
-  const lowStock = products.filter(p => p.stock < 5).length;
+  const handleApplyStock = async (product, newStock) => {
+    await setStock(product.id, newStock);
+    await loadData();
+  };
+
+  const handleIncrement = async (product) => {
+    await adjustStock(product.id, 1);
+    await loadData();
+  };
+
+  const handleDecrement = async (product) => {
+    await adjustStock(product.id, -1);
+    await loadData();
+  };
 
   return (
     <View style={styles.container}>
-      {/* Category Toggle */}
-      <View style={styles.toggleContainer}>
-        <TouchableOpacity
-          style={[styles.toggle, activeCategory === 'Produits' && styles.toggleActive]}
-          onPress={() => setActiveCategory('Produits')}
-        >
-          <Text style={[styles.toggleText, activeCategory === 'Produits' && styles.toggleTextActive]}>
-            👜 Créations
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toggle, activeCategory === 'Emballages' && styles.toggleActive]}
-          onPress={() => setActiveCategory('Emballages')}
-        >
-          <Text style={[styles.toggleText, activeCategory === 'Emballages' && styles.toggleTextActive]}>
-            📦 Emballages
-          </Text>
-        </TouchableOpacity>
+      {/* Recherche + ajout */}
+      <View style={styles.topBar}>
+        <SearchBar value={search} onChangeText={setSearch} placeholder="Rechercher un produit…" />
       </View>
 
-      {/* Stats Row */}
+      {/* Stats */}
       <View style={styles.statsRow}>
         <View style={styles.stat}>
-          <Text style={styles.statNum}>{products.length}</Text>
-          <Text style={styles.statLabel}>Références</Text>
+          <Text style={styles.statValue}>{stats.refs}</Text>
+          <Text style={styles.statLabel}>références</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statNum}>{totalStock}</Text>
-          <Text style={styles.statLabel}>Total en stock</Text>
+          <Text style={styles.statValue}>{stats.units}</Text>
+          <Text style={styles.statLabel}>unités</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={[styles.statNum, lowStock > 0 && { color: COLORS.warning }]}>{lowStock}</Text>
-          <Text style={styles.statLabel}>Stock faible</Text>
+          <Text style={[styles.statValue, stats.low > 0 && { color: COLORS.warning }]}>{stats.low}</Text>
+          <Text style={styles.statLabel}>stock faible</Text>
+        </View>
+        <View style={styles.stat}>
+          <Text style={[styles.statValue, stats.out > 0 && { color: COLORS.danger }]}>{stats.out}</Text>
+          <Text style={styles.statLabel}>ruptures</Text>
         </View>
       </View>
 
-      {/* Search */}
-      <View style={styles.searchRow}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="🔍 Rechercher..."
-          placeholderTextColor={COLORS.textMuted}
-          value={search}
-          onChangeText={setSearch}
+      {/* Filtre catégorie */}
+      <View style={styles.filterRow}>
+        <SegmentedControl
+          options={[
+            { label: 'Tout', value: 'all', icon: 'apps' },
+            { label: 'Créations', value: 'Produits', icon: 'color-palette-outline' },
+            { label: 'Emballages', value: 'Emballages', icon: 'cube-outline' },
+          ]}
+          value={category}
+          onChange={setCategory}
         />
-        <TouchableOpacity style={styles.addBtn} onPress={() => { setShowAddModal(true); }}>
-          <Text style={styles.addBtnText}>＋</Text>
+      </View>
+
+      {/* Liste */}
+      {filtered.length === 0 && products.length > 0 ? (
+        <EmptyState icon="search-outline" title="Aucun résultat" subtitle="Essayez une autre recherche ou un autre filtre." />
+      ) : products.length === 0 ? (
+        <EmptyState
+          icon="cube-outline"
+          title="Inventaire vide"
+          subtitle="Ajoutez votre première référence pour démarrer."
+          actionLabel="Ajouter un produit"
+          onAction={openCreate}
+        />
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => (
+            <ProductRow
+              item={item}
+              onPress={() => setAdjustProduct(item)}
+              onIncrement={handleIncrement}
+              onDecrement={handleDecrement}
+            />
+          )}
+        />
+      )}
+
+      {/* FAB ajouter */}
+      <View style={styles.fabWrap} pointerEvents="box-none">
+        <View style={styles.fabInner} pointerEvents="box-none">
+          <Text style={styles.fabCount}>{filtered.length}</Text>
+          <Text style={styles.fabLabel}>affichés</Text>
+        </View>
+        <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={openCreate}>
+          <Ionicons name="add" size={28} color={COLORS.white} />
         </TouchableOpacity>
       </View>
 
-      {/* Product List */}
-      <FlatList
-        data={filtered}
-        keyExtractor={item => item.id.toString()}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <TouchableOpacity onLongPress={() => handleDelete(item)} activeOpacity={1}>
-            <StockCard
-              item={item}
-              onIncrement={() => handleStockChange(item.id, item.stock, 1)}
-              onDecrement={() => handleStockChange(item.id, item.stock, -1)}
-            />
-          </TouchableOpacity>
-        )}
+      {/* Sheets */}
+      <ProductFormSheet
+        visible={formVisible}
+        onClose={() => setFormVisible(false)}
+        product={editingProduct}
+        defaultMinStock={defaultMin}
+        onSubmit={handleSubmit}
+        onDelete={handleDelete}
       />
-
-      {/* Add Product Modal */}
-      <Modal visible={showAddModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {activeCategory === 'Produits' ? '👜 Ajouter un produit' : '📦 Ajouter un emballage'}
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nom du produit"
-              placeholderTextColor={COLORS.textMuted}
-              value={newName}
-              onChangeText={setNewName}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Stock initial"
-              placeholderTextColor={COLORS.textMuted}
-              value={newStock}
-              onChangeText={setNewStock}
-              keyboardType="numeric"
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddModal(false)}>
-                <Text style={styles.cancelBtnText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.submitBtn} onPress={handleAdd}>
-                <Text style={styles.submitBtnText}>Ajouter</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <AdjustStockSheet
+        visible={!!adjustProduct}
+        onClose={() => setAdjustProduct(null)}
+        product={adjustProduct}
+        onApply={handleApplyStock}
+        onEdit={() => openEdit(adjustProduct)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  toggleContainer: { flexDirection: 'row', padding: 12, gap: 8 },
-  toggle: {
-    flex: 1, paddingVertical: 12, borderRadius: SIZES.radiusSm,
-    alignItems: 'center', backgroundColor: COLORS.card,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  toggleActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  toggleText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: SIZES.md },
-  toggleTextActive: { color: COLORS.white },
-
-  statsRow: { flexDirection: 'row', paddingHorizontal: 12, marginBottom: 8, gap: 8 },
+  topBar: { flexDirection: 'row', paddingHorizontal: 14, paddingTop: 10 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 14, marginTop: 10, gap: 7 },
   stat: {
-    flex: 1, backgroundColor: COLORS.card, borderRadius: SIZES.radiusSm,
-    padding: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
-  },
-  statNum: { color: COLORS.text, fontSize: SIZES.xxl, fontWeight: '800' },
-  statLabel: { color: COLORS.textMuted, fontSize: SIZES.xs, marginTop: 2 },
-
-  searchRow: { flexDirection: 'row', paddingHorizontal: 12, marginBottom: 8, gap: 8 },
-  searchInput: {
-    flex: 1, backgroundColor: COLORS.card, borderRadius: SIZES.radiusSm,
-    padding: 12, color: COLORS.text, fontSize: SIZES.md,
+    flex: 1, backgroundColor: COLORS.surface,
+    borderRadius: SIZES.radiusMd,
     borderWidth: 1, borderColor: COLORS.border,
+    paddingVertical: 9, alignItems: 'center',
   },
-  addBtn: {
-    width: SIZES.buttonHeight, height: SIZES.buttonHeight,
-    backgroundColor: COLORS.primary, borderRadius: SIZES.radiusSm,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  addBtnText: { color: COLORS.white, fontSize: 24, fontWeight: '700' },
+  statValue: { color: COLORS.text, fontSize: SIZES.xl, fontWeight: '800' },
+  statLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '600', marginTop: 1 },
+  filterRow: { paddingHorizontal: 14, marginTop: 10 },
+  list: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 110 },
 
-  list: { padding: 12, paddingBottom: 100 },
-
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
-  modalTitle: { color: COLORS.text, fontSize: SIZES.xxl, fontWeight: '800', marginBottom: 16 },
-  input: {
-    backgroundColor: COLORS.cardLight, borderRadius: SIZES.radiusSm, padding: 14,
-    color: COLORS.text, fontSize: SIZES.lg, marginBottom: 10,
-    borderWidth: 1, borderColor: COLORS.border,
+  fabWrap: { position: 'absolute', right: 16, bottom: 16 },
+  fabInner: { alignItems: 'center', marginBottom: 8 },
+  fabCount: { color: COLORS.textMuted, fontSize: SIZES.md, fontWeight: '800' },
+  fabLabel: { color: COLORS.textFaint, fontSize: 9, fontWeight: '600' },
+  fab: {
+    width: 56, height: 56, borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center',
   },
-  modalActions: { flexDirection: 'row', marginTop: 12, gap: 10 },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: SIZES.radiusSm, alignItems: 'center', backgroundColor: COLORS.cardLight },
-  cancelBtnText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: SIZES.lg },
-  submitBtn: { flex: 2, padding: 14, borderRadius: SIZES.radiusSm, alignItems: 'center', backgroundColor: COLORS.primary },
-  submitBtnText: { color: COLORS.white, fontWeight: '800', fontSize: SIZES.lg },
 });

@@ -2,7 +2,7 @@
   "expo": {
     "name": "LeBazare Manager",
     "slug": "lebazare-manager",
-    "version": "1.0.1",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -12,7 +12,7 @@
     },
     "android": {
       "edgeToEdgeEnabled": false,
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#0F0F1A",
         "foregroundImage": "./assets/android-icon-foreground.png",
